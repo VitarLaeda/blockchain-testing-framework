@@ -1,24 +1,29 @@
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 
 import { expect } from "chai";
 import { ethers } from "ethers";
 import { epic, feature, story } from "allure-js-commons";
-// @ts-expect-error run-rpc-tests.mjs has no TypeScript declaration file
-import { buildNodeStartupError } from "../../scripts/run-rpc-tests.mjs";
 import { RpcClient, RpcError } from "../../src/rpc/RpcClient.js";
 import { step } from "../support/reporting.js";
 
 const HEX_QUANTITY_PATTERN = /^0x[0-9a-f]+$/i;
 
-const COUNTER_ARTIFACT_PATH =
-  "artifacts/contracts/Counter.sol/Counter.json";
+const COUNTER_ARTIFACT_PATH = "artifacts/contracts/Counter.sol/Counter.json";
+const TOKEN_ARTIFACT_PATH = "artifacts/contracts/MiniToken.sol/MiniToken.json";
 
 const counterInterface = new ethers.Interface([
+  "function increment()",
+  "function value() view returns (uint256)",
+]);
+
+const tokenInterface = new ethers.Interface([
   "function mint(address to, uint256 amount)",
-  "function transfer(address from, address to, uint256 amount)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function transferFrom(address from, address to, uint256 amount) returns (bool)",
   "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
   "function totalSupply() view returns (uint256)",
 ]);
 
@@ -27,21 +32,32 @@ interface TransactionReceipt {
   contractAddress: string | null;
 }
 
-function loadCounterBytecode(): string {
-  const artifactPath = path.resolve(process.cwd(), COUNTER_ARTIFACT_PATH);
-  const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8")) as {
+function loadBytecode(artifactPath: string): string {
+  const resolved = path.resolve(process.cwd(), artifactPath);
+  const artifact = JSON.parse(fs.readFileSync(resolved, "utf8")) as {
     bytecode: string;
   };
   return artifact.bytecode;
 }
 
-function buildDeployData(ownerAddress: string): string {
-  const bytecode = loadCounterBytecode();
+function buildCounterDeployData(ownerAddress: string): string {
   const encodedArgs = ethers.AbiCoder.defaultAbiCoder().encode(
     ["address"],
     [ownerAddress],
   );
-  return ethers.concat([bytecode, encodedArgs]);
+  return ethers.concat([loadBytecode(COUNTER_ARTIFACT_PATH), encodedArgs]);
+}
+
+function buildTokenDeployData(
+  name: string,
+  symbol: string,
+  ownerAddress: string,
+): string {
+  const encodedArgs = ethers.AbiCoder.defaultAbiCoder().encode(
+    ["string", "string", "address"],
+    [name, symbol, ownerAddress],
+  );
+  return ethers.concat([loadBytecode(TOKEN_ARTIFACT_PATH), encodedArgs]);
 }
 
 async function sendTransaction(
@@ -70,17 +86,29 @@ async function waitForReceipt(
   throw new Error(`Transaction receipt not found for ${txHash}`);
 }
 
-async function readBalance(
+async function readTokenBalance(
   client: RpcClient,
   contractAddress: string,
   account: string,
 ): Promise<bigint> {
-  const data = counterInterface.encodeFunctionData("balanceOf", [account]);
+  const data = tokenInterface.encodeFunctionData("balanceOf", [account]);
   const raw = await client.request<string>("eth_call", [
     { to: contractAddress, data },
     "latest",
   ]);
-  return counterInterface.decodeFunctionResult("balanceOf", raw)[0] as bigint;
+  return tokenInterface.decodeFunctionResult("balanceOf", raw)[0] as bigint;
+}
+
+async function readCounterValue(
+  client: RpcClient,
+  contractAddress: string,
+): Promise<bigint> {
+  const data = counterInterface.encodeFunctionData("value", []);
+  const raw = await client.request<string>("eth_call", [
+    { to: contractAddress, data },
+    "latest",
+  ]);
+  return counterInterface.decodeFunctionResult("value", raw)[0] as bigint;
 }
 
 function assertHexQuantity(value: unknown): asserts value is string {
@@ -97,119 +125,6 @@ function requireRpcUrl(): string {
   }
   return rpcUrl;
 }
-
-async function startJsonRpcStub(
-  responseBody: unknown,
-): Promise<{ url: string; close: () => Promise<void> }> {
-  const server = http.createServer((_req, res) => {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(responseBody));
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
-
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    server.close();
-    throw new Error("Failed to bind JSON-RPC stub server");
-  }
-
-  return {
-    url: `http://127.0.0.1:${address.port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-      }),
-  };
-}
-
-describe("RpcClient malformed JSON-RPC error envelopes", function () {
-  beforeEach(async function () {
-    await epic("JSON-RPC");
-    await feature("Malformed envelopes");
-  });
-
-  it("rejects non-object error envelopes with a descriptive Error", async function () {
-    await story("string error envelopes are not treated as RpcError");
-
-    const stub = await startJsonRpcStub({
-      jsonrpc: "2.0",
-      id: 1,
-      error: "failure",
-    });
-
-    try {
-      await step("Request a stub returning a string error envelope", async () => {
-        const client = new RpcClient(stub.url);
-
-        try {
-          await client.request("test_method");
-          expect.fail("Expected malformed JSON-RPC error envelope rejection");
-        } catch (error) {
-          expect(error).to.be.instanceOf(Error);
-          expect(error).to.not.be.instanceOf(RpcError);
-          expect(error).to.not.be.instanceOf(TypeError);
-          expect((error as Error).message).to.match(
-            /malformed error envelope/i,
-          );
-        }
-      });
-    } finally {
-      await stub.close();
-    }
-  });
-});
-
-describe("RPC runner startup diagnostics", function () {
-  beforeEach(async function () {
-    await epic("JSON-RPC");
-    await feature("Runner startup");
-  });
-
-  it("formats EADDRINUSE startup failures with an actionable port message", async function () {
-    await story("port conflicts surface EADDRINUSE guidance");
-
-    const error = await step("Build a startup error from EADDRINUSE output", () =>
-      buildNodeStartupError({
-        exitCode: 1,
-        output:
-          "Error: listen EADDRINUSE: address already in use 127.0.0.1:38421",
-        host: "127.0.0.1",
-        port: 38421,
-      }),
-    );
-
-    await step("Message names the port and RPC_PORT guidance", async () => {
-      expect(error.message).to.include("127.0.0.1:38421");
-      expect(error.message).to.match(/EADDRINUSE/i);
-      expect(error.message).to.match(/already in use|port is already in use/i);
-      expect(error.message).to.match(/RPC_PORT/i);
-    });
-  });
-});
-
-describe("RpcClient URL validation", function () {
-  beforeEach(async function () {
-    await epic("JSON-RPC");
-    await feature("Hardhat node");
-  });
-
-  it("rejects malformed endpoint URLs at construction", async function () {
-    await story("constructor validates HTTP(S) endpoint URLs");
-
-    await step("Non-URL and non-HTTP endpoints are rejected", async () => {
-      expect(() => new RpcClient("not-a-url")).to.throw(
-        /Invalid JSON-RPC endpoint URL/,
-      );
-      expect(() => new RpcClient("ftp://127.0.0.1:8545")).to.throw(
-        /HTTP or HTTPS/,
-      );
-    });
-  });
-});
 
 describe("RpcClient Hardhat integration", function () {
   let client: RpcClient;
@@ -315,14 +230,14 @@ describe("RpcClient Hardhat integration", function () {
   });
 });
 
-describe("RpcClient contract methods over JSON-RPC", function () {
+describe("Counter over JSON-RPC", function () {
   let client: RpcClient;
-  let accounts: string[];
+  let owner: string;
 
   before(async function () {
     client = new RpcClient(requireRpcUrl());
-    accounts = await client.request<string[]>("eth_accounts");
-    expect(accounts.length).to.be.greaterThan(2);
+    const accounts = await client.request<string[]>("eth_accounts");
+    owner = accounts[0];
   });
 
   beforeEach(async function () {
@@ -330,50 +245,92 @@ describe("RpcClient contract methods over JSON-RPC", function () {
     await feature("Contract calls");
   });
 
-  it("deploys the Counter contract via eth_sendTransaction", async function () {
-    await story("eth_sendTransaction deploys contract bytecode");
-
-    const owner = accounts[0];
-
-    const receipt = await step(
-      "Deploy Counter through eth_sendTransaction",
-      { method: "eth_sendTransaction", from: owner },
-      async (ctx) => {
-        const result = await sendTransaction(client, {
-          from: owner,
-          data: buildDeployData(owner),
-        });
-        await ctx.parameter("status", result.status);
-        await ctx.parameter("contractAddress", result.contractAddress ?? "null");
-        return result;
-      },
-    );
-
-    await step("Deployment receipt reports success and an address", async () => {
-      expect(receipt.status).to.equal("0x1");
-      expect(receipt.contractAddress).to.be.a("string");
-    });
-  });
-
-  it("mints and transfers tokens through JSON-RPC calls", async function () {
-    await story("eth_sendTransaction drives mint and address-to-address transfer");
-
-    const owner = accounts[0];
-    const holder = accounts[1];
-    const recipient = accounts[2];
+  it("deploys and increments the Counter through raw JSON-RPC", async function () {
+    await story("eth_sendTransaction deploys and drives Counter state");
 
     const contractAddress = await step(
-      "Deploy Counter contract",
+      "Deploy Counter through eth_sendTransaction",
       { method: "eth_sendTransaction", from: owner },
       async (ctx) => {
         const receipt = await sendTransaction(client, {
           from: owner,
-          data: buildDeployData(owner),
+          data: buildCounterDeployData(owner),
         });
         expect(receipt.status).to.equal("0x1");
         expect(receipt.contractAddress).to.be.a("string");
-        await ctx.parameter("contractAddress", receipt.contractAddress ?? "null");
+        await ctx.parameter(
+          "contractAddress",
+          receipt.contractAddress ?? "null",
+        );
         return receipt.contractAddress as string;
+      },
+    );
+
+    await step(
+      "Increment the counter",
+      { method: "eth_sendTransaction", call: "increment", from: owner },
+      async (ctx) => {
+        const data = counterInterface.encodeFunctionData("increment", []);
+        const receipt = await sendTransaction(client, {
+          from: owner,
+          to: contractAddress,
+          data,
+        });
+        await ctx.parameter("status", receipt.status);
+        expect(receipt.status).to.equal("0x1");
+      },
+    );
+
+    await step(
+      "eth_call reports the incremented value",
+      { method: "eth_call", call: "value" },
+      async (ctx) => {
+        const value = await readCounterValue(client, contractAddress);
+        await ctx.parameter("value", value.toString());
+        expect(value).to.equal(1n);
+      },
+    );
+  });
+});
+
+describe("MiniToken over JSON-RPC", function () {
+  let client: RpcClient;
+  let owner: string;
+  let holder: string;
+  let recipient: string;
+  let spender: string;
+
+  before(async function () {
+    client = new RpcClient(requireRpcUrl());
+    const accounts = await client.request<string[]>("eth_accounts");
+    expect(accounts.length).to.be.greaterThan(3);
+    [owner, holder, recipient, spender] = accounts;
+  });
+
+  beforeEach(async function () {
+    await epic("JSON-RPC");
+    await feature("Contract calls");
+  });
+
+  async function deployToken(): Promise<string> {
+    const receipt = await sendTransaction(client, {
+      from: owner,
+      data: buildTokenDeployData("Mini Token", "MINI", owner),
+    });
+    expect(receipt.status).to.equal("0x1");
+    return receipt.contractAddress as string;
+  }
+
+  it("mints and transfers tokens through JSON-RPC calls", async function () {
+    await story("eth_sendTransaction drives mint and transfer");
+
+    const contractAddress = await step(
+      "Deploy MiniToken contract",
+      { method: "eth_sendTransaction", from: owner },
+      async (ctx) => {
+        const address = await deployToken();
+        await ctx.parameter("contractAddress", address);
+        return address;
       },
     );
 
@@ -387,10 +344,7 @@ describe("RpcClient contract methods over JSON-RPC", function () {
         amount: 1000n,
       },
       async (ctx) => {
-        const data = counterInterface.encodeFunctionData("mint", [
-          holder,
-          1000n,
-        ]);
+        const data = tokenInterface.encodeFunctionData("mint", [holder, 1000n]);
         const receipt = await sendTransaction(client, {
           from: owner,
           to: contractAddress,
@@ -405,7 +359,7 @@ describe("RpcClient contract methods over JSON-RPC", function () {
       "eth_call reports the minted holder balance",
       { method: "eth_call", call: "balanceOf", account: holder },
       async (ctx) => {
-        const balance = await readBalance(client, contractAddress, holder);
+        const balance = await readTokenBalance(client, contractAddress, holder);
         await ctx.parameter("balanceOf(holder)", balance.toString());
         expect(balance).to.equal(1000n);
       },
@@ -421,8 +375,7 @@ describe("RpcClient contract methods over JSON-RPC", function () {
         amount: 400n,
       },
       async (ctx) => {
-        const data = counterInterface.encodeFunctionData("transfer", [
-          holder,
+        const data = tokenInterface.encodeFunctionData("transfer", [
           recipient,
           400n,
         ]);
@@ -440,8 +393,12 @@ describe("RpcClient contract methods over JSON-RPC", function () {
       "eth_call confirms balances after transfer",
       { method: "eth_call", call: "balanceOf" },
       async (ctx) => {
-        const holderBalance = await readBalance(client, contractAddress, holder);
-        const recipientBalance = await readBalance(
+        const holderBalance = await readTokenBalance(
+          client,
+          contractAddress,
+          holder,
+        );
+        const recipientBalance = await readTokenBalance(
           client,
           contractAddress,
           recipient,
@@ -457,24 +414,106 @@ describe("RpcClient contract methods over JSON-RPC", function () {
     );
   });
 
+  it("spends an allowance via approve and transferFrom over JSON-RPC", async function () {
+    await story("eth_sendTransaction drives approve and transferFrom");
+
+    const contractAddress = await step(
+      "Deploy MiniToken and mint to the holder",
+      { call: "mint", from: owner, to: holder, amount: 1000n },
+      async (ctx) => {
+        const address = await deployToken();
+        const mintData = tokenInterface.encodeFunctionData("mint", [
+          holder,
+          1000n,
+        ]);
+        const receipt = await sendTransaction(client, {
+          from: owner,
+          to: address,
+          data: mintData,
+        });
+        expect(receipt.status).to.equal("0x1");
+        await ctx.parameter("contractAddress", address);
+        return address;
+      },
+    );
+
+    await step(
+      "Holder approves the spender",
+      {
+        method: "eth_sendTransaction",
+        call: "approve",
+        from: holder,
+        spender,
+        amount: 400n,
+      },
+      async (ctx) => {
+        const data = tokenInterface.encodeFunctionData("approve", [
+          spender,
+          400n,
+        ]);
+        const receipt = await sendTransaction(client, {
+          from: holder,
+          to: contractAddress,
+          data,
+        });
+        await ctx.parameter("status", receipt.status);
+        expect(receipt.status).to.equal("0x1");
+      },
+    );
+
+    await step(
+      "Spender transfers holder tokens to the recipient",
+      {
+        method: "eth_sendTransaction",
+        call: "transferFrom",
+        from: spender,
+        holder,
+        to: recipient,
+        amount: 400n,
+      },
+      async (ctx) => {
+        const data = tokenInterface.encodeFunctionData("transferFrom", [
+          holder,
+          recipient,
+          400n,
+        ]);
+        const receipt = await sendTransaction(client, {
+          from: spender,
+          to: contractAddress,
+          data,
+        });
+        await ctx.parameter("status", receipt.status);
+        expect(receipt.status).to.equal("0x1");
+      },
+    );
+
+    await step(
+      "eth_call confirms the recipient received the tokens",
+      { method: "eth_call", call: "balanceOf", account: recipient },
+      async (ctx) => {
+        const recipientBalance = await readTokenBalance(
+          client,
+          contractAddress,
+          recipient,
+        );
+        await ctx.parameter(
+          "balanceOf(recipient)",
+          recipientBalance.toString(),
+        );
+        expect(recipientBalance).to.equal(400n);
+      },
+    );
+  });
+
   it("reverts an over-balance transfer surfaced through the receipt", async function () {
     await story("insufficient-balance transfers fail on-chain");
 
-    const owner = accounts[0];
-    const holder = accounts[1];
-    const recipient = accounts[2];
-
     const contractAddress = await step(
-      "Deploy and mint tokens to the holder",
+      "Deploy MiniToken and mint tokens to the holder",
       { call: "mint", from: owner, to: holder, amount: 100n },
       async (ctx) => {
-        const deployment = await sendTransaction(client, {
-          from: owner,
-          data: buildDeployData(owner),
-        });
-        const address = deployment.contractAddress as string;
-
-        const mintData = counterInterface.encodeFunctionData("mint", [
+        const address = await deployToken();
+        const mintData = tokenInterface.encodeFunctionData("mint", [
           holder,
           100n,
         ]);
@@ -499,8 +538,7 @@ describe("RpcClient contract methods over JSON-RPC", function () {
         available: 100n,
       },
       async () => {
-        const data = counterInterface.encodeFunctionData("transfer", [
-          holder,
+        const data = tokenInterface.encodeFunctionData("transfer", [
           recipient,
           250n,
         ]);
@@ -522,7 +560,7 @@ describe("RpcClient contract methods over JSON-RPC", function () {
       "Holder balance is unchanged after the failed transfer",
       { method: "eth_call", call: "balanceOf", account: holder },
       async (ctx) => {
-        const balance = await readBalance(client, contractAddress, holder);
+        const balance = await readTokenBalance(client, contractAddress, holder);
         await ctx.parameter("balanceOf(holder)", balance.toString());
         expect(balance).to.equal(100n);
       },

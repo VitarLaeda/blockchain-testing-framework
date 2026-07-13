@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 
-const STARTUP_TIMEOUT_MS = Number(process.env.RPC_STARTUP_TIMEOUT_MS ?? "30000");
+const STARTUP_TIMEOUT_MS = Number(
+  process.env.RPC_STARTUP_TIMEOUT_MS ?? "30000",
+);
 const POLL_INTERVAL_MS = 250;
 const OUTPUT_BUFFER_MAX_BYTES = 16 * 1024;
 const TEST_FILE = "test/rpc/RpcClient.test.ts";
@@ -154,7 +156,10 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function waitForNode(url, { nodeProcess, outputCapture, host, port }) {
+export async function waitForNode(
+  url,
+  { nodeProcess, outputCapture, host, port },
+) {
   let nodeReady = false;
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
 

@@ -77,23 +77,25 @@ describe("Blockchain MCP server", function () {
         },
       );
 
-      await step("Both tools expose descriptions and input schemas", async () => {
-        const toolNames = tools.map((tool) => tool.name);
-        expect(toolNames).to.include("get_chain_metadata");
-        expect(toolNames).to.include("to_wei");
+      await step(
+        "Both tools expose descriptions and input schemas",
+        async () => {
+          const toolNames = tools.map((tool) => tool.name);
+          expect(toolNames).to.include("get_chain_metadata");
+          expect(toolNames).to.include("to_wei");
 
-        const chainMetadataTool = tools.find(
-          (tool) => tool.name === "get_chain_metadata",
-        );
-        const toWeiTool = tools.find((tool) => tool.name === "to_wei");
+          const chainMetadataTool = tools.find(
+            (tool) => tool.name === "get_chain_metadata",
+          );
+          const toWeiTool = tools.find((tool) => tool.name === "to_wei");
 
-        expect(chainMetadataTool?.description)
-          .to.be.a("string")
-          .that.is.not.empty;
-        expect(toWeiTool?.description).to.be.a("string").that.is.not.empty;
-        expect(chainMetadataTool?.inputSchema).to.be.an("object");
-        expect(toWeiTool?.inputSchema).to.be.an("object");
-      });
+          expect(chainMetadataTool?.description).to.be.a("string").that.is.not
+            .empty;
+          expect(toWeiTool?.description).to.be.a("string").that.is.not.empty;
+          expect(chainMetadataTool?.inputSchema).to.be.an("object");
+          expect(toWeiTool?.inputSchema).to.be.an("object");
+        },
+      );
     });
 
     it("advertises decimal grammar for to_wei amount input", async function () {
@@ -104,13 +106,16 @@ describe("Blockchain MCP server", function () {
       );
       cleanup = session.cleanup;
 
-      await step("to_wei amount schema advertises the decimal pattern", async () => {
-        const { tools } = await session.client.listTools();
-        const toWeiTool = tools.find((tool) => tool.name === "to_wei");
-        const amountSchema = amountInputConstraint(toWeiTool?.inputSchema);
+      await step(
+        "to_wei amount schema advertises the decimal pattern",
+        async () => {
+          const { tools } = await session.client.listTools();
+          const toWeiTool = tools.find((tool) => tool.name === "to_wei");
+          const amountSchema = amountInputConstraint(toWeiTool?.inputSchema);
 
-        expect(amountSchema.pattern).to.equal(DECIMAL_AMOUNT_PATTERN.source);
-      });
+          expect(amountSchema.pattern).to.equal(DECIMAL_AMOUNT_PATTERN.source);
+        },
+      );
     });
   });
 
@@ -150,7 +155,9 @@ describe("Blockchain MCP server", function () {
     });
 
     it("rejects unsupported chain ids and recovers", async function () {
-      await story("unsupported chain ids return stable errors and server recovers");
+      await story(
+        "unsupported chain ids return stable errors and server recovers",
+      );
 
       const session = await step("Open MCP test session", () =>
         createMcpTestSession(),
@@ -167,7 +174,10 @@ describe("Blockchain MCP server", function () {
           });
 
           await ctx.parameter("isError", String(errorResult.isError));
-          await ctx.parameter("result", extractTextContent(errorResult.content));
+          await ctx.parameter(
+            "result",
+            extractTextContent(errorResult.content),
+          );
           expect(errorResult.isError).to.equal(true);
           expect(extractTextContent(errorResult.content)).to.equal(
             "Unsupported chain id: 999",
@@ -276,7 +286,10 @@ describe("Blockchain MCP server", function () {
           });
 
           await ctx.parameter("isError", String(errorResult.isError));
-          await ctx.parameter("result", extractTextContent(errorResult.content));
+          await ctx.parameter(
+            "result",
+            extractTextContent(errorResult.content),
+          );
           expect(errorResult.isError).to.equal(true);
           expect(extractTextContent(errorResult.content)).to.equal(
             OUT_OF_RANGE_AMOUNT_MESSAGE,
@@ -324,17 +337,20 @@ describe("Blockchain MCP server", function () {
         },
       );
 
-      await step("Server still converts a valid amount afterwards", async () => {
-        const recoveryResult = await session.client.callTool({
-          name: "to_wei",
-          arguments: { amount: "1" },
-        });
+      await step(
+        "Server still converts a valid amount afterwards",
+        async () => {
+          const recoveryResult = await session.client.callTool({
+            name: "to_wei",
+            arguments: { amount: "1" },
+          });
 
-        expect(recoveryResult.isError).to.not.equal(true);
-        expect(extractTextContent(recoveryResult.content)).to.equal(
-          "1000000000000000000",
-        );
-      });
+          expect(recoveryResult.isError).to.not.equal(true);
+          expect(extractTextContent(recoveryResult.content)).to.equal(
+            "1000000000000000000",
+          );
+        },
+      );
     });
   });
 

@@ -91,7 +91,10 @@ export class RpcClient {
     this.timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  async request<T>(method: string, params: readonly unknown[] = []): Promise<T> {
+  async request<T>(
+    method: string,
+    params: readonly unknown[] = [],
+  ): Promise<T> {
     const id = this.nextId++;
     const body: JsonRpcRequest = {
       jsonrpc: "2.0",
@@ -103,9 +106,8 @@ export class RpcClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    let response: Response;
     try {
-      response = await fetch(this.endpoint, {
+      const response = await fetch(this.endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -113,55 +115,60 @@ export class RpcClient {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+
+      if (!response.ok) {
+        throw new Error(
+          `JSON-RPC HTTP request failed with status ${response.status} ${response.statusText}`,
+        );
+      }
+
+      let payload: unknown;
+      try {
+        // The abort signal also covers body consumption, so a server that
+        // stalls after sending headers still hits the timeout below.
+        payload = await response.json();
+      } catch (error) {
+        if (controller.signal.aborted) {
+          throw error;
+        }
+        throw new Error("JSON-RPC response is not valid JSON");
+      }
+
+      if (!isPlainObject(payload)) {
+        throw new Error("JSON-RPC response must be a JSON object");
+      }
+
+      const rpcResponse = payload as JsonRpcResponse;
+
+      if (rpcResponse.jsonrpc !== "2.0") {
+        throw new Error(
+          "JSON-RPC response has invalid or missing jsonrpc version",
+        );
+      }
+
+      if (rpcResponse.id !== id) {
+        throw new Error(
+          `JSON-RPC response id mismatch: expected ${id}, got ${String(rpcResponse.id)}`,
+        );
+      }
+
+      if ("error" in rpcResponse && rpcResponse.error !== undefined) {
+        const rpcError = parseJsonRpcError(rpcResponse.error);
+        throw new RpcError(rpcError.code, rpcError.message, rpcError.data);
+      }
+
+      if (!("result" in rpcResponse)) {
+        throw new Error("JSON-RPC response has neither result nor error");
+      }
+
+      return rpcResponse.result as T;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
-        throw new Error(
-          `JSON-RPC request timed out after ${this.timeoutMs}ms`,
-        );
+        throw new Error(`JSON-RPC request timed out after ${this.timeoutMs}ms`);
       }
       throw error;
     } finally {
       clearTimeout(timeoutId);
     }
-
-    if (!response.ok) {
-      throw new Error(
-        `JSON-RPC HTTP request failed with status ${response.status} ${response.statusText}`,
-      );
-    }
-
-    let payload: unknown;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new Error("JSON-RPC response is not valid JSON");
-    }
-
-    if (!isPlainObject(payload)) {
-      throw new Error("JSON-RPC response must be a JSON object");
-    }
-
-    const rpcResponse = payload as JsonRpcResponse;
-
-    if (rpcResponse.jsonrpc !== "2.0") {
-      throw new Error("JSON-RPC response has invalid or missing jsonrpc version");
-    }
-
-    if (rpcResponse.id !== id) {
-      throw new Error(
-        `JSON-RPC response id mismatch: expected ${id}, got ${String(rpcResponse.id)}`,
-      );
-    }
-
-    if ("error" in rpcResponse && rpcResponse.error !== undefined) {
-      const rpcError = parseJsonRpcError(rpcResponse.error);
-      throw new RpcError(rpcError.code, rpcError.message, rpcError.data);
-    }
-
-    if (!("result" in rpcResponse)) {
-      throw new Error("JSON-RPC response has neither result nor error");
-    }
-
-    return rpcResponse.result as T;
   }
 }

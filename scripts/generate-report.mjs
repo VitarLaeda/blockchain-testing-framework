@@ -175,7 +175,9 @@ function printOpenFailureHelp(error) {
   console.error("Failed to open the report with allure open.");
   console.error(error instanceof Error ? error.message : String(error));
   console.error("");
-  console.error("You can still view the generated files after fixing the issue:");
+  console.error(
+    "You can still view the generated files after fixing the issue:",
+  );
   console.error("  REPORT_OPEN=true npm run report");
   console.error(
     "Or serve reports/allure-report/ through your CI artifact HTTP viewer.",
@@ -201,9 +203,7 @@ function validateResultsDirectory() {
   }
 
   if (!stat.isDirectory()) {
-    printResultsFilesystemError(
-      "Allure results path is not a directory.",
-    );
+    printResultsFilesystemError("Allure results path is not a directory.");
     process.exit(1);
   }
 
@@ -232,13 +232,7 @@ async function main() {
   writeExecutorInfo();
 
   try {
-    await runAllure([
-      "generate",
-      RESULTS_DIR,
-      "-o",
-      REPORT_DIR,
-      "--clean",
-    ]);
+    await runAllure(["generate", RESULTS_DIR, "-o", REPORT_DIR, "--clean"]);
   } catch (error) {
     printAllureFailureHelp(error);
     process.exit(1);

@@ -14,10 +14,10 @@ Or run `npm test`, where this is the third stage.
 
 ## Server tools
 
-| Name | Purpose |
-|------|---------|
+| Name                 | Purpose                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
 | `get_chain_metadata` | Static network metadata: chain ID, network, rpcProtocol, and nativeCurrency |
-| `to_wei` | Converts a decimal ether string to wei with up to 18 fractional digits |
+| `to_wei`             | Converts a decimal ether string to wei with up to 18 fractional digits      |
 
 ## Request and response examples
 
@@ -97,8 +97,8 @@ Each test is divided into steps through the `step(...)` wrapper from `test/suppo
 
 ## Allure labels
 
-| epic | feature |
-|------|---------|
+| epic                     | feature                |
+| ------------------------ | ---------------------- |
 | `Model Context Protocol` | `Blockchain MCP tools` |
 
 Stories correspond to `it` blocks, for example `decimal ether amounts convert to exact wei strings`.
@@ -114,11 +114,11 @@ A new tool does not require changes in Cursor or `.cursor/mcp.json`; tests are i
 
 ## Troubleshooting failures
 
-| Symptom | Cause | Action |
-|---------|-------|--------|
-| `listTools` does not find the name | Tool was not registered or contains a typo | Check `registerTool` |
-| `isError` is unexpected | Zod or regex validation changed | Compare `amountInputSchema` with the test |
-| Test hangs after completion | `cleanup` was not called | Use `afterEach` with `session.cleanup()` |
-| SDK import errors | `@modelcontextprotocol/sdk` version issue | Run `npm install` and verify `.js` paths in imports |
+| Symptom                            | Cause                                      | Action                                              |
+| ---------------------------------- | ------------------------------------------ | --------------------------------------------------- |
+| `listTools` does not find the name | Tool was not registered or contains a typo | Check `registerTool`                                |
+| `isError` is unexpected            | Zod or regex validation changed            | Compare `amountInputSchema` with the test           |
+| Test hangs after completion        | `cleanup` was not called                   | Use `afterEach` with `session.cleanup()`            |
+| SDK import errors                  | `@modelcontextprotocol/sdk` version issue  | Run `npm install` and verify `.js` paths in imports |
 
 The transport is **InMemoryTransport.createLinkedPair()**: a real SDK transport, not mock HTTP or Cursor.

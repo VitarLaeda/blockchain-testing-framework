@@ -1,6 +1,13 @@
 {
-  "name": "js-test-framework-model",
+  "name": "blockchain-testing-framework",
   "version": "1.0.0",
+  "description": "Hardhat 3 + TypeScript test automation showcase: Solidity contract, JSON-RPC, and MCP test modules with parameterized Allure reporting.",
+  "license": "MIT",
+  "author": "VitarLaeda",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VitarLaeda/blockchain-testing-framework.git"
+  },
   "private": true,
   "type": "module",
   "engines": {
@@ -8,16 +15,39 @@
   },
   "scripts": {
     "compile": "hardhat compile",
-    "test:contracts": "hardhat test mocha test/contracts/Counter.test.ts",
-    "test:rpc": "node scripts/run-rpc-tests.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "npm run lint:ts && npm run lint:sol && npm run format:check",
+    "lint:ts": "oxlint",
+    "lint:sol": "solhint \"contracts/**/*.sol\"",
+    "lint:fix": "oxlint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:contracts": "hardhat test mocha test/contracts/Counter.test.ts test/contracts/MiniToken.test.ts",
+    "test:rpc": "npm run test:rpc:unit && npm run test:rpc:integration",
+    "test:rpc:unit": "hardhat test mocha test/rpc/RpcClient.unit.test.ts",
+    "test:rpc:integration": "node scripts/run-rpc-tests.mjs",
     "test:mcp": "hardhat test mocha test/mcp/BlockchainMcpServer.test.ts",
     "clean:allure": "node scripts/clean-allure-results.mjs",
     "pretest": "npm run clean:allure",
     "test": "npm run test:contracts && npm run test:rpc && npm run test:mcp",
-    "coverage": "hardhat test mocha test/contracts/Counter.test.ts --coverage",
-    "gas": "hardhat test mocha test/contracts/Counter.test.ts --gas-stats --gas-stats-json reports/gas-stats.json",
+    "coverage": "hardhat test mocha test/contracts/Counter.test.ts test/contracts/MiniToken.test.ts --coverage",
+    "coverage:ts": "c8 hardhat test mocha test/mcp/BlockchainMcpServer.test.ts test/rpc/RpcClient.unit.test.ts",
+    "gas": "hardhat test mocha test/contracts/Counter.test.ts test/contracts/MiniToken.test.ts --gas-stats --gas-stats-json reports/gas-stats.json",
     "report": "node scripts/generate-report.mjs",
-    "clean": "hardhat clean"
+    "clean": "hardhat clean",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,mjs,js}": [
+      "oxlint --fix",
+      "prettier --write"
+    ],
+    "*.sol": [
+      "solhint"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -31,11 +61,17 @@
     "@types/node": "^26.1.1",
     "allure-commandline": "^2.43.0",
     "allure-mocha": "^3.10.2",
+    "c8": "^11.0.0",
     "chai": "^6.2.2",
     "ethers": "^6.17.0",
     "hardhat": "^3.9.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "mocha": "^11.3.0",
     "mocha-multi-reporters": "^1.5.1",
+    "oxlint": "^1.73.0",
+    "prettier": "^3.9.5",
+    "solhint": "^6.2.3",
     "typescript": "^7.0.2"
   }
 }

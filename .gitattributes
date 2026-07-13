@@ -1,0 +1,12 @@
+# Normalize line endings: store and check out text files with LF so Prettier
+# (endOfLine: lf) stays consistent across platforms and in CI.
+* text=auto eol=lf
+
+# Keep binary assets untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.ico binary

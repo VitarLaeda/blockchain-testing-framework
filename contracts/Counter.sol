@@ -1,68 +1,49 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+/// @title Counter
+/// @author VitarLaeda
+/// @notice A minimal counter that anyone may increment but only the owner may reset.
+/// @dev Educational contract used to demonstrate contract-level and JSON-RPC test automation.
 contract Counter {
-    address private immutable owner;
+    /// @notice Account allowed to reset the counter.
+    address public immutable OWNER;
 
+    /// @notice Current counter value.
     uint256 public value;
 
-    uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
+    /// @notice Emitted whenever the counter is incremented.
+    /// @param newValue The counter value after the increment.
+    event CounterIncremented(uint256 indexed newValue);
 
-    event CounterIncremented(uint256 newValue);
+    /// @notice Emitted whenever the counter is reset to zero.
+    /// @param resetBy The account that performed the reset.
     event CounterReset(address indexed resetBy);
-    event Transfer(address indexed from, address indexed to, uint256 amount);
 
+    /// @notice Thrown when a restricted action is attempted by a non-owner.
+    /// @param caller The unauthorized caller.
     error Unauthorized(address caller);
-    error InvalidAddress();
-    error InsufficientBalance(address from, uint256 available, uint256 required);
 
+    /// @notice Deploys the counter and assigns the reset-authorized owner.
+    /// @param owner_ Account granted permission to reset the counter.
     constructor(address owner_) {
-        owner = owner_;
+        OWNER = owner_;
     }
 
+    /// @notice Increments the counter by one.
     function increment() external {
-        value += 1;
+        ++value;
         emit CounterIncremented(value);
     }
 
+    /// @notice Resets the counter to zero.
+    /// @dev Reverts with {Unauthorized} when called by any account other than {OWNER}.
     function reset() external {
-        if (msg.sender != owner) {
+        if (msg.sender != OWNER) {
             revert Unauthorized(msg.sender);
         }
 
         value = 0;
         emit CounterReset(msg.sender);
-    }
-
-    function mint(address to, uint256 amount) external {
-        if (msg.sender != owner) {
-            revert Unauthorized(msg.sender);
-        }
-        if (to == address(0)) {
-            revert InvalidAddress();
-        }
-
-        totalSupply += amount;
-        balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
-    }
-
-    function transfer(address from, address to, uint256 amount) external {
-        if (msg.sender != from) {
-            revert Unauthorized(msg.sender);
-        }
-        if (to == address(0)) {
-            revert InvalidAddress();
-        }
-
-        uint256 available = balanceOf[from];
-        if (available < amount) {
-            revert InsufficientBalance(from, available, amount);
-        }
-
-        balanceOf[from] = available - amount;
-        balanceOf[to] += amount;
-        emit Transfer(from, to, amount);
     }
 }

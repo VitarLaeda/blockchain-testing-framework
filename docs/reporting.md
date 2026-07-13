@@ -10,11 +10,11 @@ npm test  →  reports/allure-results/*-result.json
 npm run report  →  reports/allure-report/index.html
 ```
 
-| Directory | Contents | Git |
-|-----------|----------|-----|
+| Directory                 | Contents                                                | Git     |
+| ------------------------- | ------------------------------------------------------- | ------- |
 | `reports/allure-results/` | JSON from `allure-mocha`: tests, containers, and labels | Ignored |
-| `reports/allure-report/` | Generated HTML, recreated with `--clean` | Ignored |
-| `reports/gas-stats.json` | Output from `npm run gas` | Ignored |
+| `reports/allure-report/`  | Generated HTML, recreated with `--clean`                | Ignored |
+| `reports/gas-stats.json`  | Output from `npm run gas`                               | Ignored |
 
 The `scripts/generate-report.mjs` script **never** removes `allure-results`; it only clears the output `allure-report` through `allure generate --clean`.
 
@@ -52,11 +52,11 @@ This gives a complete view of a run directly in the terminal, without opening th
 
 ## Labels (grouping by epic)
 
-| epic | Module | feature |
-|------|--------|---------|
-| `Solidity Contracts` | Contracts | `Counter` |
-| `JSON-RPC` | RPC | `Malformed envelopes`, `Runner startup`, `Hardhat node`, `Contract calls` |
-| `Model Context Protocol` | MCP | `Blockchain MCP tools` |
+| epic                     | Module    | feature                                                              |
+| ------------------------ | --------- | -------------------------------------------------------------------- |
+| `Solidity Contracts`     | Contracts | `Counter`, `MiniToken`                                               |
+| `JSON-RPC`               | RPC       | `RpcClient unit`, `Runner startup`, `Hardhat node`, `Contract calls` |
+| `Model Context Protocol` | MCP       | `Blockchain MCP tools`                                               |
 
 Allure Report displays modules as separate epics, with features and stories set by `allure-js-commons` in the tests.
 
@@ -75,9 +75,9 @@ await step(
   "Owner mints tokens to the holder",
   { to: holder.address, amount: 1000n },
   async (ctx) => {
-    await counter.mint(holder.address, 1000n);
+    await token.mint(holder.address, 1000n);
     // Calculated results can also be added to step parameters:
-    await ctx.parameter("totalSupply", (await counter.totalSupply()).toString());
+    await ctx.parameter("totalSupply", (await token.totalSupply()).toString());
   },
 );
 ```
@@ -132,7 +132,7 @@ Or in `.env`:
 REPORT_OPEN=true
 ```
 
-The value is normalized with `trim` and `toLowerCase`, so `true`, `TRUE`, and ` true ` work; every other value only generates the report. Process environment variables take precedence over `.env` because `dotenv/config` is imported without `override`.
+The value is normalized with `trim` and `toLowerCase`, so `true`, `TRUE`, and `true` work; every other value only generates the report. Process environment variables take precedence over `.env` because `dotenv/config` is imported without `override`.
 
 `allure open` starts a local HTTP server and opens the report. The process **blocks** until it is stopped with Ctrl+C.
 
@@ -201,13 +201,13 @@ npm run gas
 
 ## Troubleshooting
 
-| Problem | Resolution |
-|---------|------------|
-| No `*-result.json` | `npm test` |
-| `Cannot access` / `not a directory` / `Cannot read` results | Check permissions and confirm the path is a readable directory |
-| `Allure CLI exited with code ...` during generation | Install Java using the `winget`, `brew`, or `apt` examples above, open a new terminal, then run `java -version` |
-| Generate OK, open failed | The report already exists; see `REPORT_INDEX=...`, fix Java/CLI, or use the CI HTTP viewer |
-| `index.html is missing` after generation | Run `npm test` again and check permissions for `reports/` |
-| Empty report | Confirm tests passed and results were not manually cleared between test and report |
+| Problem                                                     | Resolution                                                                                                      |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| No `*-result.json`                                          | `npm test`                                                                                                      |
+| `Cannot access` / `not a directory` / `Cannot read` results | Check permissions and confirm the path is a readable directory                                                  |
+| `Allure CLI exited with code ...` during generation         | Install Java using the `winget`, `brew`, or `apt` examples above, open a new terminal, then run `java -version` |
+| Generate OK, open failed                                    | The report already exists; see `REPORT_INDEX=...`, fix Java/CLI, or use the CI HTTP viewer                      |
+| `index.html is missing` after generation                    | Run `npm test` again and check permissions for `reports/`                                                       |
+| Empty report                                                | Confirm tests passed and results were not manually cleared between test and report                              |
 
 Regenerating is safe: the old `allure-report` is replaced and `allure-results` is preserved.

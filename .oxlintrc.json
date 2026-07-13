@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc", "promise"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "node": true,
+    "es2024": true
+  },
+  "rules": {
+    "typescript/triple-slash-reference": "off"
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.ts"],
+      "rules": {
+        "no-unused-expressions": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    "artifacts",
+    "cache",
+    "coverage",
+    "types",
+    "reports"
+  ]
+}
