@@ -1,0 +1,41 @@
+{
+  "name": "js-test-framework-model",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test:contracts": "hardhat test mocha test/contracts/Counter.test.ts",
+    "test:rpc": "node scripts/run-rpc-tests.mjs",
+    "test:mcp": "hardhat test mocha test/mcp/BlockchainMcpServer.test.ts",
+    "clean:allure": "node scripts/clean-allure-results.mjs",
+    "pretest": "npm run clean:allure",
+    "test": "npm run test:contracts && npm run test:rpc && npm run test:mcp",
+    "coverage": "hardhat test mocha test/contracts/Counter.test.ts --coverage",
+    "gas": "hardhat test mocha test/contracts/Counter.test.ts --gas-stats --gas-stats-json reports/gas-stats.json",
+    "report": "node scripts/generate-report.mjs",
+    "clean": "hardhat clean"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^17.4.2",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.7",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.1.1",
+    "allure-commandline": "^2.43.0",
+    "allure-mocha": "^3.10.2",
+    "chai": "^6.2.2",
+    "ethers": "^6.17.0",
+    "hardhat": "^3.9.1",
+    "mocha": "^11.3.0",
+    "mocha-multi-reporters": "^1.5.1",
+    "typescript": "^7.0.2"
+  }
+}
